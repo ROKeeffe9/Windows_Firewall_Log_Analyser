@@ -6,6 +6,10 @@ A Flask-based web application that allows users to upload a raw windows firewall
 
 ## Demo
 
+![alt text](Recording+2026-04-13+224645.gif)
+
+
+
 ![alt text](image.png)
 
 
@@ -20,10 +24,6 @@ A Flask-based web application that allows users to upload a raw windows firewall
 
 ![alt text](image-3.png)
 
-
-
-
-![alt text](Recording+2026-04-13+224645.gif)
 
 ---
 
