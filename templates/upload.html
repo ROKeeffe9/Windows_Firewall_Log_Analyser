@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+
+<html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <link href="https://fonts.googleapis.com/css2?family=Roboto+Mono&display=swap" rel="stylesheet">
+        <link href="/static/styles.css" rel="stylesheet">
+        <title>Windows_Firewall_Log_Analyser</title>
+        <script>
+            document.addEventListener("DOMContentLoaded", function() {
+                document.getElementById("file-upload").addEventListener("change", function() {
+                    if(this.files.length > 0) {
+                        document.getElementById("file-name").textContent = this.files[0].name;
+                    }
+                })
+            })
+        </script>
+    </head>
+    <body>
+        
+        <div class="header">
+            <h1>Windows Firewall Log Analyser</h1>
+        </div>
+        <div class="error_message">
+            {% if error_message %}
+                <p>{{ error_message }}</p>
+            {% endif %}
+        </div>
+        <div class="buttons-section">
+            <form action="/" method="post" enctype="multipart/form-data" class="upload-form">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <label for="file-upload" class="custom-file-upload">
+                    Upload File
+                </label>
+                <input id="file-upload" type="file" name="logfile">
+                <button class="custom-file-upload" type="submit">Submit</button>
+            </form>
+            <p id="file-name"></p>
+        </div>
+    </body>
+</html>
