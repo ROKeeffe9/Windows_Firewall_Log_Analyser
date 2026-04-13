@@ -7,9 +7,21 @@ A Flask-based web application that allows users to upload a raw windows firewall
 ## Demo
 
 ![alt text](image.png)
+
+
+
 ![alt text](image-1.png)
+
+
+
 ![alt text](image-2.png)
+
+
+
 ![alt text](image-3.png)
+
+
+
 
 ![alt text](Recording+2026-04-13+224645.gif)
 
@@ -84,7 +96,7 @@ Windows Firewall Log Analyser \
 
 ### 1. Clone the repository
 
-git clone 
+git clone https://github.com/ROKeeffe9/Windows_Firewall_Log_Analyser.git
 cd Windows_Firewall_Log_Analyser
 
 ### 2. Install dependencies
