@@ -1,0 +1,489 @@
+<!DOCTYPE html>
+
+<html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <link href="https://fonts.googleapis.com/css2?family=Roboto+Mono&display=swap" rel="stylesheet">
+        <link href="/static/styles.css" rel="stylesheet">
+        <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+        <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+        <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+        <title>Windows_Firewall_Log_Analyser</title>
+        <script>
+            function toggleDetails(index) {
+                const row = document.getElementById("details-" + index);
+
+                if (row.classList.contains("show")) {
+                    row.classList.remove("show");
+                    row.style.display = "none";
+                } else {
+                    row.classList.add("show");
+                    row.style.display = "table-row";
+                }
+            }
+        
+            document.addEventListener("DOMContentLoaded", function () {
+
+                const map = L.map('map').setView([20, 0], 2);
+
+                L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                    attribution: '&copy; OpenStreetMap contributors'
+                }).addTo(map);
+
+                const mapPoints = {{ map_points | tojson }};
+
+                mapPoints.forEach(point => {
+                    let color;
+
+                    if (point.type === "inbound") {
+                        color = '#7B61FF' // purple  
+                    } else if (point.type === "outbound") {
+                        color = '#3FA9F5' // blue   
+                    }
+
+                    L.circleMarker([point.lat, point.lon], {
+                        radius: 5,
+                        color: color,
+                        fillColor: color,
+                        fillOpacity: 0.7
+                    }).addTo(map);
+                });
+               
+                const lineCtx = document.getElementById('line-chart').getContext('2d');
+                const lineChart = new Chart(lineCtx, {
+                    type: 'line',
+                    data: {
+                        labels: {{ time_data["time_chart_labels"] | tojson }},
+                        datasets: [
+                            {
+                                label: 'Traffic',
+                                data: {{ time_data.get("time_bin_data", []) | tojson }},
+                                borderWidth: 2,
+                                tension: 0.3,
+                                borderColor: '#3FA9F5', // blue
+                                backgroundColor: '#3FA9F5', // blue
+                            },
+                            {
+                                label: 'Allow',
+                                data: {{ time_data.get("allow_bin_data", []) | tojson }},
+                                borderWidth: 2,
+                                tension: 0.3,
+                                borderColor: '#2EC4B6', // teal
+                                backgroundColor: '#2EC4B6', // teal
+                            },
+                            {
+                                label: 'Drop',
+                                data: {{ time_data.get("drop_bin_data", []) | tojson }},
+                                borderWidth: 2,
+                                tension: 0.3,
+                                borderColor: '#E94E77', // pink
+                                backgroundColor: '#E94E77', // pink
+                            }
+                        ]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false
+                    }
+                });
+
+                const pathCtx = document.getElementById('path-pie-chart').getContext('2d');
+
+                const pathChart = new Chart(pathCtx, {
+                    type: 'pie',
+                    data: {
+                        labels: ["Inbound", "Outbound"],
+                        datasets: [{
+                            data: {{ [log_stats["inbound_count"], log_stats["outbound_count"]] | tojson }},
+                            backgroundColor: [
+                                '#7B61FF', // purple
+                                '#3FA9F5', // blue
+                            ]
+                        }]
+                    }
+                });
+
+
+                const protocolCtx = document.getElementById('protocol-pie-chart').getContext('2d');
+
+                const protocolChart = new Chart(protocolCtx, {
+                    type: 'pie',
+                    data: {
+                        labels: {{ log_stats["protocol_labels"] | tojson }},
+                        datasets: [{
+                            data: {{ log_stats["protocol_counts"] | tojson }},
+                            backgroundColor: [
+                                '#E94E77', // pink 
+                                '#7B61FF', // purple
+                                '#3FA9F5', // blue
+                                '#2EC4B6', // teal
+                                '#F4A261', // orange
+                                '#E9C46A'  // yellow
+                            ]
+                        }]
+                    }
+                });
+            });
+        </script>
+    </head>
+    <body>
+        <div class="header-bar">
+            <div class="header-left">
+                Windows Firewall Log Analyser
+            </div>
+
+            <div class="header-right">
+                <div class="file-meta">
+                    <span>{{ file_name }}</span>
+                    <span>{{ total_logs }} logs loaded</span>
+                </div>
+            </div>
+        </div>
+        <div class="visual-section">
+            <div class="visual-column">
+                <div class="card">
+                    <div class="summary-statistics">
+                        <div class="log-count">
+                            <h2>Logs</h2>
+                            <div>{{ log_stats["log_count"] }}</div>
+                            <div class="count-label">Count</div>
+                        </div>
+                        <div class="log-count">
+                            <h2>Allowed</h2>
+                            <div>{{ log_stats["allow_count"] }}</div>
+                            <div class="count-label">Count</div>
+                        </div>
+                        <div class="log-count">
+                            <h2>Dropped</h2>
+                            <div>{{ log_stats["drop_count"] }}</div>
+                            <div class="count-label">Count</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="card">
+                    <h4 class="chart-title">Network Traffic Over Time</h4>
+                    <div class="chart-container">
+                        <canvas id="line-chart"></canvas>
+                    </div>
+                </div>
+
+                <!-- Common IP Address Table -->
+                <div class="card">
+                    <div class="ip-table-card">
+                        <h4 class="chart-title">Common IP Addresses</h4>
+                        <table class="ip-table">
+                            <thead>
+                                <tr>
+                                    <th>Inbound IP Addresses</th>
+                                    <th>Traffic Quantity</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for key in log_stats["inbound_ip_listcount"] %}
+                                    <tr>
+                                        <td>{{ key }}</td>
+                                        <td>{{ log_stats["inbound_ip_listcount"][key] }}</td>
+                                    </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                        <table class="ip-table">
+                            <thead>
+                                <tr>
+                                    <th>Outbound IP Addresses</th>
+                                    <th>Traffic Quantity</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for key in log_stats["outbound_ip_listcount"] %}
+                                    <tr>
+                                        <td>{{ key }}</td>
+                                        <td>{{ log_stats["outbound_ip_listcount"][key] }}</td>
+                                    </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+            <div class="visual-column">
+
+                <!-- Display the map from javaScript -->
+                <div class="card">
+                    <div id="map"></div>
+                </div>
+
+                <!-- Pie Chart Section -->
+                <div class="card">
+                    <div class="pie-section">
+                        <div class="pie-block">
+                            <h4 class="chart-title">Inbound vs Outbound</h4>
+                            <canvas id="path-pie-chart"></canvas>
+                        </div>
+                        <div class="pie-block">
+                            <h4 class="chart-title">Protocol Distribution</h4>
+                            <canvas id="protocol-pie-chart"></canvas>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Insights Section -->
+                <div class="card">
+                    <div class="insight-table-card">
+                        <table class="insight-table">
+                            <thead>
+                                <tr>
+                                    <th>
+                                        Insights
+                                    </th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for insight in log_stats["insights"] %}
+                                    <tr class="insight-{{ insight.type }}">
+                                        <td>
+                                            <span class="insight-icon">
+                                                {% if insight.type == "alert" %}🚨{% endif %}
+                                                {% if insight.type == "warning" %}⚠️{% endif %}
+                                                {% if insight.type == "info" %}ℹ️{% endif %}
+                                            </span>
+                                            {{ insight.message }}
+                                        </td>
+                                    </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Form, all inputs need to be in here -->
+        <form action="/" method="post">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <table class="log-table">
+                <thead>
+                    <tr>
+                        {% for key in headers %}
+                            {% if key != "extra" %}
+                                <th>{{ key }}</th>
+                            {% endif %}
+                        {% endfor %}
+                        <th>Details</th>
+                    </tr>
+
+                    <!-- Filter Bar, dynamically display filter boxes depending on whats in filter_config -->
+                    <tr class="filter-bar">
+                        {% for key in headers %}
+                            {% if key != "extra" %}
+                                <th>
+                                    {% set config = filter_config.get(key) %}
+                                    {% if config['input'] == "categorical" %}
+                                        <select name="{{ config['field'] }}_val">
+                                            <option value="">All</option>
+                                            {% for item in config['dropdown_list'] %}
+                                                <option value="{{ item }}">{{ item }}</option>
+                                            {% endfor %}
+                                        </select>
+                                    {% elif config['input'] == "range" %}
+                                        <div class="filter-label">From:</div>
+                                        <input type="{{ config['type'] }}" name="{{ config['field'] }}_min">
+                                        <div class="filter-label">To:</div>
+                                        <input type="{{ config['type'] }}" name="{{ config['field'] }}_max">
+                                    {% else %}
+                                        <input type="{{ config['type'] }}" name="{{ config['field'] }}_val">
+                                    {% endif %}
+                                </th>
+                            {% endif %}
+                        {% endfor %}
+                        <th><button type="submit" class="details-button">Filter</button></th>
+                    </tr>
+                </thead>
+
+               
+                <tbody>
+                    {% if logs %}
+                        {% for log in logs %}
+                        <!-- Display each log item according to whats in headers -->
+                            <tr>
+                                {% for key in headers %}
+                                    {% if key != "extra" %}
+                                        <td>{{ log[key] }}</td>
+                                    {% endif %}
+                                {% endfor %}
+                                <!-- Details Button, will toggle details row below each log row -->
+                                <td class="details-button">
+                                    <button type="button" onclick="toggleDetails({{ loop.index }})" class="details-button">
+                                        Details
+                                    </button>
+                                </td>
+                            </tr>
+
+                            <!-- Details row content -->
+                            <tr id="details-{{ loop.index }}" class="details-row">
+                                <td colspan="{{ headers|length + 1 }}">
+
+                                    <div class="content-section">
+                                        <div class="content-subsection">
+                                            <h3>Network Overview</h3>
+
+                                            <div class="content-item">
+                                                <span class="label">Protocol:</span>
+                                                <span class="value">{{ log["protocol"] }}</span>
+                                            </div> 
+                                            <div class="content-item">
+                                                <span class="label">IP Version:</span>
+                                                <span class="value">{{ log["extra"]["ip_version"] }}</span>
+                                            </div> 
+                                            <div class="content-item">
+                                                <span class="label">Packet Size:</span>
+                                                <span class="value">{{ log["extra"]["packet_size"] }}</span>
+                                            </div> 
+                                            <div class="content-item">
+                                                <span class="label">Direction:</span>
+                                                <span class="value">{{ log["extra"]["direction"] }}</span>
+                                            </div> 
+                                            <div class="content-item">
+                                                <span class="label">Action:</span>
+                                                <span class="value">{{ log["action"] }}</span>
+                                            </div> 
+                                        </div>
+                                        <div class="content-subsection">
+                                            <h3>Source</h3>
+
+                                            <div class="content-item">
+                                                <span class="label">IP Address:</span>
+                                                <span class="value">{{ log["src-ip"] }}</span>
+                                            </div>
+                                            <div class="content-item">
+                                                <span class="label">Type:</span>
+                                                <span class="value">{{ log["extra"]["src_ip_type"] }}</span>
+                                            </div>
+                                            <div class="content-item">
+                                                <span class="label">Scope:</span>
+                                                <span class="value">{{ log["extra"]["src_ip_scope"] }}</span>
+                                            </div>
+                                            <div class="content-item">
+                                                <span class="label">Country:</span>
+                                                <span class="value">{{ log["extra"]["src_ip_country"] }}</span>
+                                            </div>
+                                            <div class="content-item">
+                                                <span class="label">City:</span>
+                                                <span class="value">{{ log["extra"]["src_ip_city"] }}</span>
+                                            </div>
+                                         
+                                            <div class="content-item">
+                                                <span class="label">Port:</span>
+                                                <span class="value">{{ log["src-port"] }}</span>
+                                            </div>
+                                            <div class="content-item">
+                                                <span class="label">Service:</span>
+                                                <span class="value">{{ log["extra"]["src_port_service"] }}</span>
+                                            </div> 
+                                            <div class="content-item">
+                                                <span class="label">Type:</span>
+                                                <span class="value">{{ log["extra"]["src_port_type"] }}</span>
+                                            </div> 
+                                            <div class="content-item">
+                                                <span class="label">Trust:</span>
+                                                <span class="value">{{ log["extra"]["src_ip_trust"] }}</span>
+                                            </div> 
+                                        </div>
+                                        <div class="content-subsection">
+                                            <h3>Destination</h3>
+
+                                            <div class="content-item">
+                                                <span class="label">IP Address:</span>
+                                                <span class="value">{{ log["dst-ip"] }}</span>
+                                            </div>
+                                            <div class="content-item">
+                                                <span class="label">Type:</span>
+                                                <span class="value">{{ log["extra"]["dst_ip_type"] }}</span>
+                                            </div>
+                                            <div class="content-item">
+                                                <span class="label">Scope:</span>
+                                                <span class="value">{{ log["extra"]["dst_ip_scope"] }}</span>
+                                            </div>
+                                            <div class="content-item">
+                                                <span class="label">Country:</span>
+                                                <span class="value">{{ log["extra"]["dst_ip_country"] }}</span>
+                                            </div>
+                                            <div class="content-item">
+                                                <span class="label">City:</span>
+                                                <span class="value">{{ log["extra"]["dst_ip_city"] }}</span>
+                                            </div>
+                                         
+                                            <div class="content-item">
+                                                <span class="label">Port:</span>
+                                                <span class="value">{{ log["dst-port"] }}</span>
+                                            </div>
+                                            <div class="content-item">
+                                                <span class="label">Service:</span>
+                                                <span class="value">{{ log["extra"]["dst_port_service"] }}</span>
+                                            </div> 
+                                            <div class="content-item">
+                                                <span class="label">Type:</span>
+                                                <span class="value">{{ log["extra"]["dst_port_type"] }}</span>
+                                            </div> 
+                                            <div class="content-item">
+                                                <span class="label">Trust:</span>
+                                                <span class="value">{{ log["extra"]["dst_ip_trust"] }}</span>
+                                            </div> 
+                                        </div>
+                                        <div class="content-subsection">
+                                            <h3>Insight</h3>
+
+                                            <div class="content-item">
+                                                <span class="label">Traffic Type:</span>
+                                                <span class="value">{{ log["extra"]["traffic_type"] }}</span>
+                                            </div>
+
+                                            <div class="content-item">
+                                                <span class="label">Summary:</span>
+                                                <span class="value">{{ log["extra"]["purpose"] }}</span>
+                                            </div>
+
+                                            <div class="content-item">
+                                                <span class="label">Communication Pattern:</span>
+                                                <span class="value">{{ log["extra"]["pattern"] }}</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </td>
+                            </tr>
+                        {% endfor %}
+                    {% else %}
+                    <!-- Handle case where no logs present -->
+                        <tr>
+                            <td colspan="{{ headers|length + 1 }}" class="no-results">
+                                No results found
+                            </td>
+                        </tr>
+                    {% endif %}
+                </tbody>
+            </table>
+
+            <!-- Page number section -->
+            <div class="page-no-bar">
+                
+                {% if current_page > 1 %}
+                    <button type="submit" name="page" value="{{ current_page - 1 }}">
+                        ← Previous
+                    </button>
+                {% endif %}
+
+                <span>
+                    Page {{ current_page }} of {{ total_pages }}
+                </span>
+
+                {% if current_page < total_pages %}
+                    <button type="submit" name="page" value="{{ current_page + 1 }}">
+                        Next →
+                    </button>
+                {% endif %}
+
+            </div>
+        </form>
+    </body>
+</html>
